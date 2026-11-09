@@ -137,7 +137,45 @@ const LLAMAR = ["Sí","No"];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const lista = m => m.length === 1 ? m[0] : m.slice(0,-1).join(", ") + " y " + m[m.length-1];
 
+// Encuesta del equipo (09/11/2026): anónima, un solo link para todos (?equipo). No pide nombre, área ni antigüedad:
+// con 9 personas cualquiera de esas cosas alcanza para saber quién es.
+const EQUIPO = { slug: "equipo", empresa: "equipo", marcas: [] };
+function preguntasEquipo(){
+  return [
+    {h:"Para empezar", qs:[
+      {k:"enps", t:"nps", req:1, q:"Del 0 al 10, ¿qué tan probable es que le recomiendes a un amigo trabajar en Kairo?"},
+      {k:"enps_por", t:"text", q:"¿Por qué ese número?"}
+    ]},
+    {h:"Cómo estás", qs:[
+      {t:"grid", req:1, q:"¿Qué tan de acuerdo estás con cada frase?", hint:"1 = nada de acuerdo · 5 = totalmente de acuerdo", filas:[
+        ["c_claridad","Tengo claro qué se espera de mí cada semana"],
+        ["c_rumbo","Sé hacia dónde va Kairo y cómo suma mi trabajo"],
+        ["c_herramientas","Tengo la información y las herramientas para hacer bien mi trabajo"],
+        ["c_carga","Mi carga de trabajo es manejable"],
+        ["c_voz","Puedo decir lo que pienso, aunque no coincida con Lucas o los socios"],
+        ["c_reconocimiento","Cuando hago algo bien, se nota y se reconoce"],
+        ["c_devolucion","Recibo devoluciones que me ayudan a mejorar"],
+        ["c_equipo","En el equipo nos ayudamos"],
+        ["c_crecer","Estoy aprendiendo y creciendo acá"],
+        ["c_justo","Lo que gano es justo para lo que hago"]
+      ]}
+    ]},
+    {h:"El día a día", qs:[
+      {k:"quemado", t:"radio", req:1, q:"¿Qué tan seguido terminás la semana quemado o quemada?", opts:["Casi nunca","A veces","Seguido","Casi siempre"]},
+      {k:"traba", t:"check", q:"¿Dónde se traba más el trabajo?", hint:"Podés marcar varias",
+        opts:["Pedidos o briefs poco claros","Cambios de último momento de los clientes","Aprobaciones que tardan","Demasiados canales (WhatsApp, Notion, Drive…)","Reuniones que no hacen falta","Falta gente para lo que hay","No se me traba nada"], otra:1}
+    ]},
+    {h:"Lo que viene", qs:[
+      {k:"en_un_ano", t:"radio", req:1, q:"¿Cómo te ves en Kairo dentro de un año?", opts:["Acá, con más responsabilidades","Acá, haciendo lo mismo","Todavía no lo sé","Probablemente en otro lado"]},
+      {k:"gusta", t:"text", q:"¿Qué es lo que más te gusta de trabajar en Kairo?"},
+      {k:"cambiarias", t:"text", req:1, q:"Si fueras Lucas por un día, ¿qué cambiarías primero?"},
+      {k:"algo_mas", t:"text", q:"¿Hay algo que quieras decir y que en persona no dirías?"}
+    ]}
+  ];
+}
+
 function preguntas(c){
+  if (c.empresa === "equipo") return preguntasEquipo();
   if (c.empresa === "fornno"){
     const filas = [
       ["n_reporte_ventas","El reporte mensual de ventas: si te sirve para tomar decisiones"],
@@ -234,7 +272,8 @@ function campo(q){
 function claves(q){ return q.t === "grid" ? q.filas.map(f=>f[0]) : [q.k]; }
 
 function render(c){
-  document.body.className = c.empresa;
+  const eq = c.empresa === "equipo";
+  document.body.className = eq ? "kairo equipo" : c.empresa;
   const bloques = preguntas(c);
   let n = 0;
   const marca = c.empresa === "fornno" ? "FORNNO" : "Kairo";
@@ -247,9 +286,13 @@ function render(c){
     <form class="card" id="form" novalidate>
       <header class="head">
         <div class="logo">${logo}</div>
-        <h1>¿Cómo venimos con ${esc(lista(c.marcas))}<span class="dot">?</span></h1>
+        ${eq ? `<h1>¿Cómo estamos como equipo<span class="dot">?</span></h1>
+        <p>Queremos que Kairo sea un buen lugar para trabajar, y para eso necesitamos saber cómo lo vivís vos, sin filtro.</p>
+        <p><strong>Es anónima de verdad:</strong> no pide tu nombre ni tu mail, no guarda la hora en que respondiste y las respuestas se mezclan en la planilla. Lucas ve los resultados juntos y recién cuando hayan respondido al menos 5.</p>
+        <div class="meta"><span class="pill">${total} preguntas</span><span class="pill">4 minutos</span><span class="pill">Anónima</span></div>`
+        : `<h1>¿Cómo venimos con ${esc(lista(c.marcas))}<span class="dot">?</span></h1>
         <p>${hola}Queremos saber, sin filtro, cómo estás con nuestro trabajo. Las respuestas las lee Lucas, una por una. Si algo no te gusta, decilo tal cual.</p>
-        <div class="meta"><span class="pill">${total} preguntas</span><span class="pill">3 minutos</span></div>
+        <div class="meta"><span class="pill">${total} preguntas</span><span class="pill">3 minutos</span></div>`}
       </header>
       ${bloques.map(b=>`<section class="block"><div class="block-h">${esc(b.h)}</div>${b.qs.map(q=>{n++; return `
         <div class="q" data-claves="${claves(q).join(",")}" ${q.req?'data-req="1"':""} data-t="${q.t}">
@@ -282,7 +325,7 @@ function render(c){
       return;
     }
     st.textContent = "";
-    const r = { slug: c.slug };
+    const r = eq ? { tipo: "equipo" } : { slug: c.slug };
     form.querySelectorAll(".q").forEach(q=>q.dataset.claves.split(",").forEach(k=>{
       if (q.dataset.t === "check"){
         const vals = [...form.querySelectorAll(`input[name="${k}"]:checked`)].map(i=>i.value==="Otra" ? "Otra: " + (document.getElementById(k+"-otra-texto").value.trim() || "sin detalle") : i.value);
@@ -324,6 +367,7 @@ function progreso(form){
 }
 
 function gracias(c, llamar){
+  if (c.empresa === "equipo") return graciasEquipo(c);
   const nombre = c.contacto ? `, ${esc(c.contacto)}` : "";
   document.getElementById("bar").style.width = "100%";
   document.getElementById("app").innerHTML = `
@@ -341,6 +385,22 @@ function gracias(c, llamar){
   if (again) again.onclick = ()=>render(c);
 }
 
+function graciasEquipo(c){
+  document.getElementById("bar").style.width = "100%";
+  document.getElementById("app").innerHTML = `
+    <div class="card">
+      <header class="head"><div class="logo"><img src="${LOGOS.kairo}" alt="Kairo"></div></header>
+      <div class="thanks">
+        <h2>¡Gracias! Se guardó sin tu nombre.</h2>
+        <p>Cuando respondan todos, vamos a juntar los resultados, contárselos al equipo y elegir qué cambiamos primero.</p>
+        ${CONFIG.modo === "preview" ? `<p class="small"><strong>Vista previa:</strong> no se guardó nada.</p><button type="button" class="linkish" id="again">Volver a la encuesta</button>` : ""}
+      </div>
+    </div>`;
+  window.scrollTo({top:0});
+  const again = document.getElementById("again");
+  if (again) again.onclick = ()=>render(c);
+}
+
 function sinCliente(){
   document.getElementById("app").innerHTML = `<div class="card"><div class="thanks">
     <h2>Este link está incompleto</h2>
@@ -350,19 +410,22 @@ function sinCliente(){
 if (CONFIG.modo === "preview"){
   const box = document.getElementById("preview");
   const slugs = Object.keys(CONFIG.clientes);
+  const todos = Object.assign({}, CONFIG.clientes, { equipo: EQUIPO });
   let actual = slugs[0];
-  try { const s = localStorage.getItem("encuesta-cliente"); if (s && CONFIG.clientes[s]) actual = s; } catch(e){}
+  try { const s = localStorage.getItem("encuesta-cliente"); if (s && todos[s]) actual = s; } catch(e){}
   const grupo = (emp, titulo) => `<optgroup label="${titulo}">${slugs.filter(s=>CONFIG.clientes[s].empresa===emp).map(s=>`<option value="${s}" ${s===actual?"selected":""}>${esc(CONFIG.clientes[s].nombre)}</option>`).join("")}</optgroup>`;
-  box.innerHTML = `<span><strong>Vista previa.</strong> Así la ve cada cliente. Lo que marques no se guarda.</span>
-    <label for="cli">Cliente: <select id="cli">${grupo("kairo","Kairo")}${grupo("fornno","FORNNO")}</select></label>`;
+  box.innerHTML = `<span><strong>Vista previa.</strong> Así la ve cada cliente y el equipo. Lo que marques no se guarda.</span>
+    <label for="cli">Encuesta: <select id="cli"><optgroup label="Equipo"><option value="equipo" ${actual==="equipo"?"selected":""}>Equipo de Kairo (anónima)</option></optgroup>${grupo("kairo","Kairo")}${grupo("fornno","FORNNO")}</select></label>`;
   box.hidden = false;
-  const ir = s => { render(Object.assign({slug:s}, CONFIG.clientes[s])); try{ localStorage.setItem("encuesta-cliente", s); }catch(e){} };
+  const ir = s => { render(Object.assign({slug:s}, todos[s])); try{ localStorage.setItem("encuesta-cliente", s); }catch(e){} };
   document.getElementById("cli").addEventListener("change", e=>{ ir(e.target.value); window.scrollTo({top:0}); });
   ir(actual);
 } else if (CONFIG.modo === "web"){
   // La página vive en GitHub Pages y no trae datos de clientes: los pide a Apps Script con el cliente del link.
-  const slug = (new URLSearchParams(location.search).get("cliente") || "").toLowerCase();
-  if (!slug) sinCliente();
+  const qs = new URLSearchParams(location.search);
+  const slug = (qs.get("cliente") || "").toLowerCase();
+  if (qs.has("equipo")){ render(EQUIPO); document.title = "Kairo · ¿Cómo estamos como equipo?"; }
+  else if (!slug) sinCliente();
   else {
     document.getElementById("app").innerHTML = `<div class="card"><div class="thanks"><p>Cargando la encuesta…</p></div></div>`;
     fetch(CONFIG.api + "?formato=json&cliente=" + encodeURIComponent(slug))
